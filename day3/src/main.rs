@@ -152,12 +152,16 @@ fn main() {
 
     let numbers = find_numbers(&board);
 
-    let numbers = numbers
+    let numbers_it = numbers
         .iter()
-        .filter(|number| number.has_adjacent_symbol(&board))
-        .collect::<Vec<_>>();
+        .filter(|number| number.has_adjacent_symbol(&board));
 
-    println!("Numbers: {:?}", numbers);
+        //.collect::<Vec<_>>();
+
+    // We need this more than once...
+    let numbers: Vec<_> = numbers_it.collect();
+
+    //println!("Numbers: {:?}", numbers);
 
     let number_sum: u32 = numbers.iter().map(|n| n.number).sum();
 
@@ -165,11 +169,11 @@ fn main() {
 
     let stars = find_stars(&board);
 
-    println!("Stars: {:?}", stars);
+    //println!("Stars: {:?}", stars);
 
-    let starred_gear: Vec<Option<u32>> = stars.iter().map(|star| get_gear(&numbers, *star)).collect();
+    //let starred_gear: Vec<Option<u32>> = stars.iter().map(|star| get_gear(&numbers, *star)).collect();
 
-    println!("Starred gear: {:?}", starred_gear);
+    //println!("Starred gear: {:?}", starred_gear);
 
-    println!("Starred gear sum: {}", starred_gear.iter().filter_map(|x| *x).sum::<u32>());
+    println!("Starred gear sum: {}", stars.iter().filter_map(|star| get_gear(&numbers, *star)).sum::<u32>());
 }
