@@ -53,10 +53,10 @@ impl OneRangeMap {
 
         let unmapped = vec![unmap1, unmap2];
         
-        dbg!(&intersection);
+        /*dbg!(&intersection);
         dbg!(&self);
         dbg!(&in_range);
-        dbg!(&unmapped);
+        dbg!(&unmapped);*/
 
         while in_idx < in_range.end {
             if self.src_range.contains(&in_idx) {
@@ -64,14 +64,14 @@ impl OneRangeMap {
                 //dbg!(&in_range);
                 let earliest_end = *[in_range.end, self.src_range.end].iter().min().unwrap();
                 let src_idx_start = in_idx - self.src_range.start;
-                dbg!(src_idx_start);
+                //dbg!(src_idx_start);
                 let dest_idx_start = src_idx_start;
                 let dest_idx_end = earliest_end - self.src_range.start;
                 //let src_idx_end =
                 let range = (self.dest_range.start + dest_idx_start)
                     ..(self.dest_range.start + dest_idx_end);
                 //dbg!(range.len());
-                dbg!(&range);
+                //dbg!(&range);
                 in_idx += range.len();
                 //dbg!(&in_range, &self.src_range, &range, in_idx, &earliest_end);
                 out.push(range);
@@ -85,10 +85,10 @@ impl OneRangeMap {
             }
         }
 
-        dbg!(MapRangeResult {
+        MapRangeResult {
             mapped: out,
             unmapped,
-        })
+        }
     }
 }
 
@@ -214,14 +214,14 @@ fn parse(stdin: std::io::Stdin) -> Stuff {
 fn main() {
     let stuff = parse(std::io::stdin());
 
-    dbg!(&stuff);
+    //dbg!(&stuff);
 
     let mapped_seeds = stuff
         .seeds
         .iter()
         .map(|seed| stuff.map(*seed))
         .collect::<Vec<_>>();
-    dbg!(&mapped_seeds);
+    //dbg!(&mapped_seeds);
 
     let themin = stuff
         .seeds
@@ -241,7 +241,7 @@ fn main() {
         //.flatten()
         .collect::<Vec<_>>();
 
-    dbg!(&new_seeds);
+    //dbg!(&new_seeds);
 
     /*println!(
         "The new min: {}",
@@ -254,7 +254,7 @@ fn main() {
         .filter(|r| r.len() > 0)
         .collect::<Vec<_>>();
 
-    dbg!(&new_seeds_location_ranges);
+    //dbg!(&new_seeds_location_ranges);
 
     let thenewmin = new_seeds_location_ranges.iter().map(|r| r.start).min().unwrap();
 
