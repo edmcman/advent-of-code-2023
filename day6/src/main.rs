@@ -80,6 +80,7 @@ impl Race {
 type Races = Vec<Race>;
 
 fn parse(stdin: std::io::Stdin) -> Races {
+
     let twolines = stdin
         .lines()
         .take(2)
