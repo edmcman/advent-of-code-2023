@@ -117,6 +117,12 @@ impl Config {
     }
 
     fn test2(&self) -> usize {
+
+        if self.conditions.len() == 0 {
+            return if self.broken.is_empty() {1} else {0};
+        }
+
+        dbg!(&self.conditions, &self.broken);
         // So the idea is to assume that we're always starting at a new
         // contiguous segment of broken springs.
 
@@ -129,27 +135,82 @@ impl Config {
             self.conditions
                 .iter()
                 .enumerate()
+                //.skip(1) // is this right?
                 .find_map(|(i, c)| if *c == '.' { Some(i) } else { None });
 
         let next_broken = self.broken.first();
 
-        match next_period {
-            None => panic!("tbd"),
-            Some(period_index) => {
-                for (i, c) in self.conditions[0..i].iter().enumerate() {
-                    match *c {
-                        '#' => () // It's not possible to end here.
-                        '?' => {
-                            if Some(i) == next_broken {
-                                // It is possible for ? to be a .
-                            } else {
-                                // It is not possible for ? to be a .
-                            }
-                        }
+        let period_index = next_period.unwrap_or(self.conditions.len()-1);
+
+        println!("period_index is {period_index}. this means that we'll consider all the possibilities in 0..{period_index} and then recurse.");
+
+        let mut choices = 1_usize;
+
+        for (i, c) in self.conditions[0..=period_index].iter().enumerate() {
+
+            // In this loop, we are now considering (i-1)*#.
+            // We are now considering i-1*#
+
+            dbg!(&i);
+
+            //dbg!(i,c,choices);
+
+            match *c {
+                '#' => (), // It's not possible to end here.
+                '.' => {
+                    // We're ending here.  We better match!
+                    // We have i-1 #.  
+                    if i > 0 && Some(&(i-1)) == next_broken {
+                        // OK... recurse on the remainder                        
+                        let config = Config{
+                            conditions: self.conditions[i+1..].to_vec(),
+                            broken: self.broken[1..].to_vec() // tail
+                        };
+                        println!("recursing on the remainder {:?}", config);
+                        choices *= config.test2();
+                    } else {
+                        println!("Um this is bad");
+                        return 0
                     }
                 }
+                '?' => {
+
+                    //dbg!(Some(&i), next_broken);
+
+                    // What if it's a period? ###.
+                    dbg!(i);
+                    if (i > 0 && Some(&(i-1)) == next_broken) || i == 0 {
+                        dbg!(i);
+                        // i == 0 because we don't have any springs yet.
+                        // It is possible for ? to be a .
+                        // Recurse on [i..]
+                        println!("We could break on a ? at {i}!");
+                        println!("{} {period_index}", i+1);
+                        if i+1 <= period_index {
+                            let recurse_conditions = self.conditions[i+1..period_index].to_vec();
+                            let broken = if i == 0 {
+                                self.broken.clone()
+                            } else {
+                                self.broken[1..].to_vec()
+                            };
+                            let config = Config{
+                                conditions: recurse_conditions,
+                                broken // this is .tail
+                            };
+                            println!("add recursing on {:?}", config);
+                            choices += dbg!(config.test2());
+                        }
+                    } else {
+                        println!("Can't put . here at {i}");
+                    }
+
+                    // What if it's a #? Then we continue
+                },
+                _ => panic!("unknown char")
             }
         }
+
+        choices
     }
 
     /*
@@ -205,11 +266,17 @@ fn main() {
 
     let p2_configs = configs.iter().map(|c| c.to_part2()).collect::<Vec<_>>();
 
-    let p2_counts = p2_configs
+    for c in configs.iter() {
+        println!("hmm {}", c.test2());
+    }
+
+    /*let p2_counts = p2_configs
         .iter()
         .progress()
         .map(|c| c.expand().filter(|c| c.is_valid()).count())
         .collect::<Vec<_>>();
+*/
 
-    println!("Part 2: {}", p2_counts.iter().sum::<usize>());
+
+    //println!("Part 2: {}", p2_counts.iter().sum::<usize>());
 }
