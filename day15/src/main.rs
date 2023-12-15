@@ -45,7 +45,7 @@ fn part2(strings: &Vec<String>) -> usize {
                 // Update the map
                 match existing_lens {
                     Some(existing_lens) => {
-                        *existing_lens = (new_fl);
+                        *existing_lens = new_fl;
                     }
                     None => {
                         m.push((new_label.to_owned(), new_fl));
