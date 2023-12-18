@@ -1,5 +1,3 @@
-//use std::collections::HashSet;
-//use rayon::prelude::*;
 use itertools::Itertools;
 use pathfinding::prelude::dijkstra;
 
@@ -7,14 +5,6 @@ use pathfinding::prelude::dijkstra;
 struct Board {
     board: Vec<Vec<char>>,
 }
-
-/*#[derive(Debug, Clone, Hash, Eq, PartialEq, PartialOrd, Ord)]
-struct BeamState {
-    x: usize,
-    y: usize,
-    dx: isize,
-    dy: isize,
-}*/
 
 impl Board {
     fn add_delta(
@@ -33,82 +23,6 @@ impl Board {
         Some((x, y))
     }
 }
-
-/*
-impl BeamState {
-    fn move_next(&self, board: &Board) -> Option<Self> {
-        add_delta((self.x, self.y), (self.dx, self.dy))
-            .map(|(newx, newy)| Self {
-                x: newx,
-                y: newy,
-                dx: self.dx,
-                dy: self.dy,
-            })
-            .filter(|s| s.x < board.width() && s.y < board.height())
-    }
-
-    // Next states
-    fn next(&self, board: &Board) -> Vec<Self> {
-        match board.get(self.x, self.y) {
-            None => vec![],
-            // empty space
-            Some('.') => vec![self.move_next(board)]
-                .into_iter()
-                .flatten()
-                .collect_vec(),
-            // splitters acting as empty space
-            Some('-') if self.dx != 0 => vec![self.move_next(board)]
-                .into_iter()
-                .flatten()
-                .collect_vec(),
-            Some('|') if self.dy != 0 => vec![self.move_next(board)]
-                .into_iter()
-                .flatten()
-                .collect_vec(),
-            // mirror
-            Some(c @ ('/' | '\\')) => {
-                let (dx, dy) = match c {
-                    // If we were going right (+dx), go up (+dy)
-                    '/' => (self.dy, self.dx),
-                    // If we were going right (+dx), go down (-dy)
-                    '\\' => (-self.dy, -self.dx),
-                    _ => unreachable!(),
-                };
-                vec![Self { dx, dy, ..*self }.move_next(board)]
-                    .into_iter()
-                    .flatten()
-                    .collect_vec()
-            }
-            // splitter splitting
-            Some('-') if self.dy != 0 => vec![
-                Self {
-                    dx: -1,
-                    dy: 0,
-                    ..*self
-                },
-                Self {
-                    dx: 1,
-                    dy: 0,
-                    ..*self
-                },
-            ],
-            Some('|') if self.dx != 0 => vec![
-                Self {
-                    dx: 0,
-                    dy: -1,
-                    ..*self
-                },
-                Self {
-                    dx: 0,
-                    dy: 1,
-                    ..*self
-                },
-            ],
-            Some(_) => panic!("oops"),
-        }
-    }
-}
-*/
 
 impl Board {
     fn get_row(&self, row: usize) -> &[char] {
