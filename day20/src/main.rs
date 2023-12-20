@@ -1,9 +1,12 @@
 use core::panic;
-use std::collections::{HashMap, VecDeque};
+use std::{
+    collections::{HashMap, HashSet, VecDeque},
+    io::Write,
+};
 
 use itertools::Itertools;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 struct Module {
     name: String,
     modtype: ModuleType,
@@ -32,7 +35,7 @@ impl Module {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 enum OnOff {
     On,
     Off,
@@ -71,12 +74,13 @@ impl PulseType {
 
 #[derive(Debug, Clone)]
 struct Pulse {
+    button: usize,
     src: String,
     dest: String,
     pulse_type: PulseType,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum ModuleType {
     Broadcast,
     FlipFlop(OnOff),
@@ -116,8 +120,9 @@ fn parse(stdin: std::io::Stdin) -> Vec<Module> {
         .collect_vec()
 }
 
-fn process(modules: &mut Vec<Module>, all_pulses: &mut Vec<Pulse>) {
+fn process(button_press_num: usize, modules: &mut Vec<Module>, all_pulses: &mut Vec<Pulse>) {
     let button_press = Pulse {
+        button: button_press_num,
         src: "button".to_string(),
         dest: "broadcaster".to_string(),
         pulse_type: PulseType::Low,
@@ -149,6 +154,7 @@ fn process(modules: &mut Vec<Module>, all_pulses: &mut Vec<Pulse>) {
 
                 current_mod.dest.iter().for_each(|dest| {
                     pulse_queue.push_back(Pulse {
+                        button: button_press_num,
                         src: current_mod.name.to_string(),
                         dest: dest.to_string(),
                         pulse_type: flipflop_enabled.to_pulsetype(),
@@ -171,6 +177,7 @@ fn process(modules: &mut Vec<Module>, all_pulses: &mut Vec<Pulse>) {
 
                 current_mod.dest.iter().for_each(|dest| {
                     pulse_queue.push_back(Pulse {
+                        button: button_press_num,
                         src: current_mod.name.to_string(),
                         dest: dest.to_string(),
                         pulse_type: new_pulse.clone(),
@@ -181,6 +188,7 @@ fn process(modules: &mut Vec<Module>, all_pulses: &mut Vec<Pulse>) {
                 // When a pulse is received, the broadcaster module sends a pulse of the same type to all of its destinations.
                 current_mod.dest.iter().for_each(|dest| {
                     pulse_queue.push_back(Pulse {
+                        button: button_press_num,
                         src: current_mod.name.to_string(),
                         dest: dest.to_string(),
                         pulse_type: pulsetype.clone(),
@@ -197,7 +205,7 @@ fn part1(modules: &Vec<Module>, n: usize) -> usize {
     let mut all_pulses = Vec::<Pulse>::new();
 
     for _ in 0..n {
-        process(&mut modules, &mut all_pulses);
+        process(n, &mut modules, &mut all_pulses);
     }
 
     let low_pulses = all_pulses
@@ -215,31 +223,85 @@ fn part1(modules: &Vec<Module>, n: usize) -> usize {
     low_pulses * high_pulses
 }
 
-fn part2(modules: &Vec<Module>) -> i32 {
+fn part2(modules: &Vec<Module>, n: usize) -> usize {
     let mut modules = modules.clone();
 
     let mut all_pulses = Vec::<Pulse>::new();
 
-    (0..)
-        .find_map(|n| {
-            process(&mut modules, &mut all_pulses);
+    for i in 0..n {
+        process(i, &mut modules, &mut all_pulses);
+    }
 
-            let num_rx_low = all_pulses.iter().filter(|p| p.dest == "rx" && p.pulse_type == PulseType::Low).count();
-            
-            //dbg!(&num_rx_low);
+    let suspects = ["rr", "js", "bs", "zb"];
 
-            if num_rx_low > 0 { Some(n) } else { None }
-        })
-        .unwrap()
+    let cycle_lens = suspects.iter().map(|name| {
+        let binding = all_pulses
+            .iter()
+            .filter(|p| p.src == **name)
+            //.enumerate()
+            .group_by(|p| &p.pulse_type);
+
+        /*
+        for (key, group) in &binding {
+            println!("key: {:?}, group: {:?}", key, group.collect_vec());
+        }*/
+
+        let iters = binding.into_iter().filter(|(key, group)| **key == PulseType::High)
+        .map(|(_, mut g)| g.next().map(|p| p.button).unwrap()).collect_vec();
+        let start_off = iters.first().unwrap();
+        let diffs = iters.iter().tuple_windows().map(|(a,b)| b-a).collect_vec();
+        dbg!(&start_off, &diffs);
+
+        let first_diff = diffs.first().unwrap();
+        assert!(diffs.iter().all(|d| *d == *first_diff));
+
+        (name, start_off.clone(), first_diff.clone())
+        
+    }).collect_vec();
+
+    dbg!(&cycle_lens);
+
+    let cycles = cycle_lens.iter().map(|p| p.2).collect_vec();
+    let offsets = cycle_lens.iter().map(|p| p.1).collect_vec();
+
+    println!("The cycle lengths are {:?} and the offsets are {:?}", cycles, offsets);
+
+    let lcm = cycles.iter().map(|i| *i).reduce(|a, b| num_integer::lcm(a, b)).unwrap();
+    dbg!(&lcm);
+
+    lcm
+
 }
 
 fn main() {
     let modules = parse(std::io::stdin());
     dbg!(&modules);
 
+    {
+        let mut f = std::fs::File::create("/tmp/out.dot").unwrap();
+
+        writeln!(f, "digraph {{");
+
+        for m in &modules {
+            let shape = match m.modtype {
+                ModuleType::Broadcast => "doublecircle",
+                ModuleType::FlipFlop(_) => "box",
+                ModuleType::Conjunction(_) => "circle",
+            };
+
+            writeln!(f, "{} [shape={}]", m.name, shape).unwrap();
+
+            for dest in &m.dest {
+                writeln!(f, "{} -> {}", m.name, dest).unwrap();
+            }
+        }
+
+        writeln!(f, "}}");
+    }
+
     let p1 = part1(&modules, 1000);
     println!("p1: {p1}");
 
-    let p2 = part2(&modules);
+    let p2 = part2(&modules, 100000);
     println!("p2: {p2}");
 }
