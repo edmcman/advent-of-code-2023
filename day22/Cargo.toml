@@ -1,5 +1,5 @@
 [package]
-name = "day21"
+name = "day22"
 version = "0.1.0"
 edition = "2021"
 
@@ -8,5 +8,5 @@ edition = "2021"
 [dependencies]
 indicatif = "0.17.7"
 itertools = "0.12.0"
-pathfinding = "4.6.0"
-stacker = "0.1.15"
+memoize = "0.4.1"
+rayon = "1.8.0"

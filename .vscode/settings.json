@@ -16,6 +16,7 @@
         "./day18/Cargo.toml",
         "./day19/Cargo.toml",
         "./day20/Cargo.toml",
-        "./day21/Cargo.toml"
+        "./day21/Cargo.toml",
+        "./day22/Cargo.toml"
     ]
 }
