@@ -1,4 +1,6 @@
 use itertools::Itertools;
+use std::collections::HashMap;
+mod topological_sort;
 
 #[derive(Eq, PartialEq, PartialOrd, Ord, Hash, Clone)]
 
@@ -126,6 +128,10 @@ struct State {
 }
 
 impl State {
+    fn succ_cost(&self, board: &Board) -> Vec<(State, usize)> {
+        self.succ(board).into_iter().map(|s| (s, 1)).collect_vec()
+    }
+
     fn succ(&self, board: &Board) -> Vec<State> {
         match board.get(self.x, self.y) {
             '.' => {
@@ -177,6 +183,44 @@ impl State {
     }
 }
 
+// don't worry about cycles
+fn simple_succ(board: &Board, t: (usize, usize)) -> Vec<(usize, usize)> {
+    let st = State {
+        x: t.0,
+        y: t.1,
+        path: vec![],
+    };
+
+    let o = st.succ(board).into_iter().map(|s| (s.x, s.y)).collect_vec();
+
+    println!("succ({:?}) = {:?}", &t, &o);
+
+    o
+}
+
+fn search_for_longest(
+    board: &Board,
+    path: Vec<(usize, usize)>,
+    start: &(usize, usize),
+    goal: &(usize, usize),
+) -> Option<usize> {
+    if start == goal {
+        return Some(0);
+    }
+
+    let mut new_path = path.clone();
+    new_path.push(*start);
+
+    let succ = simple_succ(board, *start);
+    let best = succ
+        .iter()
+        .filter(|p| !path.contains(p))
+        .filter_map(move |p| Some((p, search_for_longest(board, new_path, &p, goal)?)))
+        .max_by_key(|(_, len)| *len)?;
+
+    Some(best.1 + 1)
+}
+
 fn p1(board: &Board) -> usize {
     //let start = board.iter_grid().find(|(x, y)| board.get(*x, *y) == 'S').unwrap();
     let start = State {
@@ -189,21 +233,28 @@ fn p1(board: &Board) -> usize {
 
     //bfs_reach.for_each(|s| println!("reachable: {:?}", &s));
     let longest = bfs_reach.max_by_key(|s| s.path.len()).unwrap();
-    
+
     println!("longest: {:?}", &longest);
-    
+
     longest.path.len()
 }
 
 fn p2(board: &Board) -> usize {
+    let no_slopes = board
+        .grid
+        .iter()
+        .map(|row| {
+            row.iter()
+                .map(|c| match c {
+                    '<' | '>' | 'v' | '^' => '.',
+                    c => *c,
+                    _ => panic!("bad char"),
+                })
+                .collect_vec()
+        })
+        .collect_vec();
 
-    let no_slopes = board.grid.iter().map(|row| row.iter().map(|c| match c {
-        '<'|'>'|'v'|'^' => '.',
-        c => *c,
-        _ => panic!("bad char"),
-    }).collect_vec()).collect_vec();
-
-    let board = Board{ grid: no_slopes };
+    let board = Board { grid: no_slopes };
 
     dbg!(&board);
 
@@ -213,20 +264,78 @@ fn p2(board: &Board) -> usize {
         path: vec![],
     };
 
-    let bfs_reach = pathfinding::directed::bfs::bfs_reach(start, |s| s.succ(&board));
+    println!("TOPO COMPUTE");
+    //let topo = topological_sort::topological_sort(&[(1, 0)], |s| simple_succ(&board, *s)).unwrap();
+    println!("TOPO DONE");
+
+    let bfs = pathfinding::directed::bfs::bfs_reach((1, 0), |s| simple_succ(&board, *s));
+    let topo = bfs.collect_vec();
+
+    println!("topo = {:?}", &topo);
+
+    //let mut m = HashMap::<(usize, usize), usize>::new();
+    let mut m = HashMap::<(usize, usize), Vec<(usize, usize)>>::new();
+
+    let m = loop {
+        println!("loop");
+
+        let m_copy = m.clone();
+
+        for curr @ (_x, _y) in &topo {
+            //let mut best = 0;
+            dbg!(&curr);
+
+            let succs = simple_succ(&board, *curr);
+            for succ in succs {
+                let mut new_path = m.get(&curr).unwrap_or(&vec![]).clone();
+                if new_path.contains(&succ) {
+                    // uh oh, cycle
+                    new_path = vec![];
+                } else {
+                    new_path.push(succ);
+                }
+
+                let old_path = m.get(&succ).unwrap_or(&vec![]).clone();
+
+                if new_path.len() > old_path.len() {
+                    println!("Updated best path to {:?} to {:?}", succ, new_path);
+                    m.insert(succ, new_path);
+                }
+            }
+        }
+
+        if m == m_copy {
+            break m;
+        }
+    };
+
+    let longest = m
+        .iter()
+        .find(|(p, y)| **p == (board.max_col() - 1, board.max_row() - 1))
+        .unwrap();
+
+    let longest_path = m.get(longest.0).unwrap();
+
+    vis(&board, longest_path);
+
+    longest_path.len()
+
+    /*
+    let bfs_reach = pathfinding::directed::dfs::dfs_reach(start, |s| s.succ(&board));
 
     //bfs_reach.for_each(|s| println!("reachable: {:?}", &s));
     let longest = bfs_reach
     // apparently we have to leave the maze, lol
     .filter(|s| (s.x,s.y) == (board.max_col()-1, board.max_row()-1))
     .max_by_key(|s| s.path.len()).unwrap();
-    
+
     assert!(longest.path.clone().into_iter().unique().collect_vec() == longest.path);
 
     println!("longest: {:?}", &longest);
     vis(&board, &longest.path);
-    
+
     longest.path.len() + 1
+    */
 }
 
 fn main() {
@@ -234,7 +343,7 @@ fn main() {
     dbg!(&board);
 
     let p1 = p1(&board);
-    println!{"p1: {p1}"};
+    println! {"p1: {p1}"};
 
     let p2 = p2(&board);
     println!("p2: {p2}");
