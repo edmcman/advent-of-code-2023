@@ -1,6 +1,4 @@
 use itertools::Itertools;
-use std::collections::HashMap;
-mod topological_sort;
 
 #[derive(Eq, PartialEq, PartialOrd, Ord, Hash, Clone)]
 
@@ -193,7 +191,7 @@ fn simple_succ(board: &Board, t: (usize, usize)) -> Vec<(usize, usize)> {
 
     let o = st.succ(board).into_iter().map(|s| (s.x, s.y)).collect_vec();
 
-    println!("succ({:?}) = {:?}", &t, &o);
+    //println!("succ({:?}) = {:?}", &t, &o);
 
     o
 }
@@ -208,6 +206,8 @@ fn search_for_longest(
         return Some(0);
     }
 
+    //println!("{:?}", &path);
+
     let mut new_path = path.clone();
     new_path.push(*start);
 
@@ -215,7 +215,7 @@ fn search_for_longest(
     let best = succ
         .iter()
         .filter(|p| !path.contains(p))
-        .filter_map(move |p| Some((p, search_for_longest(board, new_path, &p, goal)?)))
+        .filter_map(|p| Some((p, search_for_longest(board, new_path.clone(), &p, goal)?)))
         .max_by_key(|(_, len)| *len)?;
 
     Some(best.1 + 1)
@@ -258,93 +258,28 @@ fn p2(board: &Board) -> usize {
 
     dbg!(&board);
 
-    let start = State {
-        x: 1,
-        y: 0,
-        path: vec![],
-    };
+    // Rust doesn't let you change the main thread's stack size, grrr.
 
-    println!("TOPO COMPUTE");
-    //let topo = topological_sort::topological_sort(&[(1, 0)], |s| simple_succ(&board, *s)).unwrap();
-    println!("TOPO DONE");
+    let builder = std::thread::Builder::new().stack_size(32 * 1024 * 1024); // 32 MB stack size
 
-    let bfs = pathfinding::directed::bfs::bfs_reach((1, 0), |s| simple_succ(&board, *s));
-    let topo = bfs.collect_vec();
+    let handler = builder.spawn(move || {
+        search_for_longest(&board, vec![], &(1, 0), &(board.max_col() - 1, board.max_row() - 1)).unwrap() + 1
+        // Your recursive function or code with high stack demands
+    }).unwrap();
 
-    println!("topo = {:?}", &topo);
+    handler.join().unwrap()
 
-    //let mut m = HashMap::<(usize, usize), usize>::new();
-    let mut m = HashMap::<(usize, usize), Vec<(usize, usize)>>::new();
-
-    let m = loop {
-        println!("loop");
-
-        let m_copy = m.clone();
-
-        for curr @ (_x, _y) in &topo {
-            //let mut best = 0;
-            dbg!(&curr);
-
-            let succs = simple_succ(&board, *curr);
-            for succ in succs {
-                let mut new_path = m.get(&curr).unwrap_or(&vec![]).clone();
-                if new_path.contains(&succ) {
-                    // uh oh, cycle
-                    new_path = vec![];
-                } else {
-                    new_path.push(succ);
-                }
-
-                let old_path = m.get(&succ).unwrap_or(&vec![]).clone();
-
-                if new_path.len() > old_path.len() {
-                    println!("Updated best path to {:?} to {:?}", succ, new_path);
-                    m.insert(succ, new_path);
-                }
-            }
-        }
-
-        if m == m_copy {
-            break m;
-        }
-    };
-
-    let longest = m
-        .iter()
-        .find(|(p, y)| **p == (board.max_col() - 1, board.max_row() - 1))
-        .unwrap();
-
-    let longest_path = m.get(longest.0).unwrap();
-
-    vis(&board, longest_path);
-
-    longest_path.len()
-
-    /*
-    let bfs_reach = pathfinding::directed::dfs::dfs_reach(start, |s| s.succ(&board));
-
-    //bfs_reach.for_each(|s| println!("reachable: {:?}", &s));
-    let longest = bfs_reach
-    // apparently we have to leave the maze, lol
-    .filter(|s| (s.x,s.y) == (board.max_col()-1, board.max_row()-1))
-    .max_by_key(|s| s.path.len()).unwrap();
-
-    assert!(longest.path.clone().into_iter().unique().collect_vec() == longest.path);
-
-    println!("longest: {:?}", &longest);
-    vis(&board, &longest.path);
-
-    longest.path.len() + 1
-    */
+    //search_for_longest(&board, vec![], &(1, 0), &(board.max_col() - 1, board.max_row() - 1)).unwrap() + 1
+   
 }
 
 fn main() {
     let board = Board::from_stdin(std::io::stdin());
     dbg!(&board);
 
-    let p1 = p1(&board);
+/*    let p1 = p1(&board);
     println! {"p1: {p1}"};
-
+*/
     let p2 = p2(&board);
     println!("p2: {p2}");
 }
