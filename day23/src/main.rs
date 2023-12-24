@@ -1,3 +1,5 @@
+use std::collections::{HashMap, HashSet};
+
 use itertools::Itertools;
 
 #[derive(Eq, PartialEq, PartialOrd, Ord, Hash, Clone)]
@@ -181,7 +183,6 @@ impl State {
     }
 }
 
-// don't worry about cycles
 fn simple_succ(board: &Board, t: (usize, usize)) -> Vec<(usize, usize)> {
     let st = State {
         x: t.0,
@@ -197,12 +198,13 @@ fn simple_succ(board: &Board, t: (usize, usize)) -> Vec<(usize, usize)> {
 }
 
 fn search_for_longest(
-    board: &Board,
+    edges: &Graph,
     path: Vec<(usize, usize)>,
     start: &(usize, usize),
     goal: &(usize, usize),
 ) -> Option<usize> {
     if start == goal {
+        //println!("goal! {:?}", &path);
         return Some(0);
     }
 
@@ -211,14 +213,28 @@ fn search_for_longest(
     let mut new_path = path.clone();
     new_path.push(*start);
 
-    let succ = simple_succ(board, *start);
-    let best = succ
+    let succ_edges = edges
+        .get(start)
+        .unwrap()
         .iter()
-        .filter(|p| !path.contains(p))
-        .filter_map(|p| Some((p, search_for_longest(board, new_path.clone(), &p, goal)?)))
+        .filter(|(dst, _)| !new_path.contains(dst))
+        .collect_vec();
+
+    //println!("path {:?} succ edges {:?}", &new_path, &succ_edges);
+
+    let best = succ_edges
+        .iter()
+        .filter_map(|(dst, cost)| {
+            let rec = search_for_longest(edges, new_path.clone(), &dst, goal);
+            //println!("highest cost found from {:?} rec: {:?}", &new_path, &rec);
+
+            Some((dst, cost + rec?))
+        })
         .max_by_key(|(_, len)| *len)?;
 
-    Some(best.1 + 1)
+    Some(best.1)
+
+    //Some(best.1 + 1)
 }
 
 fn p1(board: &Board) -> usize {
@@ -239,6 +255,86 @@ fn p1(board: &Board) -> usize {
     longest.path.len()
 }
 
+type Coord = (usize, usize);
+type Graph = HashMap<Coord, HashSet<(Coord, usize)>>;
+
+fn collapse_hallways(graph: &Graph) -> Graph {
+    let mut graph = graph.clone();
+
+    // Find a node with two successors
+    // v why
+    while let Some(a_node) = graph
+        .clone()
+        .into_iter()
+        .find(|(_, succs)| succs.len() == 2)
+    {
+        let copy = graph.clone();
+        let (node, succs) = a_node;
+
+        match succs.iter().collect_vec().as_slice() {
+            [(succ1, cost1), (succ2, cost2)] => {
+                let succ1_edge = graph.get(succ1).unwrap().clone();
+                let succ1_edge = succ1_edge
+                    .into_iter()
+                    .map(|(succ, cost)| {
+                        if succ == node {
+                            (*succ2, cost1 + cost2)
+                        } else {
+                            (succ, cost)
+                        }
+                    })
+                    .collect::<HashSet<_>>();
+                graph.insert(*succ1, succ1_edge);
+
+                let succ2_edge = graph.get(succ2).unwrap().clone();
+                let succ2_edge = succ2_edge
+                    .into_iter()
+                    .map(|(succ, cost)| {
+                        if succ == node {
+                            (*succ1, cost1 + cost2)
+                        } else {
+                            (succ, cost)
+                        }
+                    })
+                    .collect::<HashSet<_>>();
+                graph.insert(*succ2, succ2_edge);
+
+                graph.remove(&node);
+
+                // Assert that there are no references to node in the graph
+                assert!(!graph
+                    .values()
+                    .any(|succs| succs.iter().any(|(n, _c)| *n == node)));
+            }
+            _ => panic!("oops"),
+        }
+    }
+
+    graph
+}
+
+fn make_graph(board: &Board, start: (usize, usize)) -> Graph {
+    let dfs = pathfinding::directed::dfs::dfs_reach(start, |t| simple_succ(board, *t));
+
+    let graph = dfs
+        .map(|st| {
+            let succs = simple_succ(board, st);
+            (
+                st,
+                succs
+                    .into_iter()
+                    .map(|succ| (succ, 1))
+                    .collect::<HashSet<_>>(),
+            )
+        })
+        .collect::<HashMap<_, _>>();
+
+    let collapsed_graph = collapse_hallways(&graph);
+    println!("collapsed graph: {:?}", &collapsed_graph);
+
+    collapsed_graph
+}
+
 fn p2(board: &Board) -> usize {
     let no_slopes = board
         .grid
@@ -248,7 +344,6 @@ fn p2(board: &Board) -> usize {
                 .map(|c| match c {
                     '<' | '>' | 'v' | '^' => '.',
                     c => *c,
-                    _ => panic!("bad char"),
                 })
                 .collect_vec()
         })
@@ -258,28 +353,23 @@ fn p2(board: &Board) -> usize {
 
     dbg!(&board);
 
-    // Rust doesn't let you change the main thread's stack size, grrr.
+    let start = (1, 0);
+    let goal = (board.max_col() - 1, board.max_row());
 
-    let builder = std::thread::Builder::new().stack_size(32 * 1024 * 1024); // 32 MB stack size
+    println!("collapsing graph");
+    let graph = make_graph(&board, start);
+    //println!("graph: {:?}", &graph);
 
-    let handler = builder.spawn(move || {
-        search_for_longest(&board, vec![], &(1, 0), &(board.max_col() - 1, board.max_row() - 1)).unwrap() + 1
-        // Your recursive function or code with high stack demands
-    }).unwrap();
-
-    handler.join().unwrap()
-
-    //search_for_longest(&board, vec![], &(1, 0), &(board.max_col() - 1, board.max_row() - 1)).unwrap() + 1
-   
+    search_for_longest(&graph, vec![], &start, &goal).unwrap()
 }
 
 fn main() {
     let board = Board::from_stdin(std::io::stdin());
     dbg!(&board);
 
-/*    let p1 = p1(&board);
+    let p1 = p1(&board);
     println! {"p1: {p1}"};
-*/
+
     let p2 = p2(&board);
     println!("p2: {p2}");
 }
