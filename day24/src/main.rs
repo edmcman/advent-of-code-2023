@@ -1,4 +1,7 @@
 use itertools::Itertools;
+use nalgebra as na;
+
+use na::{DMatrix, DVector};
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Ord, Eq, Hash)]
 struct Hail {
@@ -59,7 +62,6 @@ impl Hail {
                 + (dx2 * dy1 * x1))
                 / ((dx1 * dy2) - (dx2 * dy1));
 
-            
             let dx1_actual = intersect_x - x1;
             if dx1_actual / dx1 < 0.0 {
                 // wrong way.
@@ -87,7 +89,7 @@ fn p1(hail: &Vec<Hail>, min: f64, max: f64) -> usize {
         .enumerate()
         .map(|(i1, h1)| {
             hail.iter()
-            .enumerate()
+                .enumerate()
                 .filter(move |(i2, _)| i2 > &i1)
                 .map(move |(i2, h2)| ((h1, h2), h1.intersect_xy_with(h2)))
         })
@@ -117,6 +119,46 @@ fn p1(hail: &Vec<Hail>, min: f64, max: f64) -> usize {
     tmp.len()
 }
 
+fn p2(hail: &Vec<Hail>) {
+    let n = hail.len();
+
+    let nrow = 3 * n;
+    let ncol = 6 + n;
+
+    let r1p1 = [1.0, 0.0, 0.0, -1.0, 0.0, 0.0];
+    let r2p1 = [0.0, 1.0, 0.0, 0.0, -1.0, 0.0];
+    let r3p1 = [0.0, 0.0, 1.0, 0.0, 0.0, -1.0];
+
+    let A = hail
+        .iter()
+        .enumerate()
+        .flat_map(|(i, h)| {
+            // ok, i zeroes, dx1, then n - i - 2 zeros
+            let r1 = r1p1.clone()
+                .into_iter()
+                .chain(std::iter::repeat(0.0).take(i))
+                .chain(std::iter::once(h.dx as f64))
+                .chain(std::iter::repeat(0.0).take(n - i - 1))
+                .collect_vec();
+            let r2 = r2p1.clone()
+                .into_iter()
+                .chain(std::iter::repeat(0.0).take(i))
+                .chain(std::iter::once(h.dy as f64))
+                .chain(std::iter::repeat(0.0).take(n - i - 1))
+                .collect_vec();
+            let r3 = r3p1.clone()
+                .into_iter()
+                .chain(std::iter::repeat(0.0).take(i))
+                .chain(std::iter::once(h.dz as f64))
+                .chain(std::iter::repeat(0.0).take(n - i - 1))
+                .collect_vec();
+            [r1, r2, r3]
+            //vec![r1, r2, r3]
+        })
+        .flatten()
+        .collect_vec();
+}
+
 fn from_stdin(stdin: std::io::Stdin) -> Vec<Hail> {
     stdin
         .lines()
@@ -124,7 +166,36 @@ fn from_stdin(stdin: std::io::Stdin) -> Vec<Hail> {
         .collect_vec()
 }
 
+fn test() {
+    // Define your constants for both sets of equations
+    let (x1, y1, z1, dx1, dy1, dz1) = (1.0, 2.0, 3.0, 4.0, 5.0, 6.0); // First set
+    let (x2, y2, z2, dx2, dy2, dz2) = (7.0, 8.0, 9.0, 10.0, 11.0, 12.0); // Second set
+
+    // Coefficient matrix A
+    // so there are 3 rows for each hailstone
+    // columns: 6 + #hailstones
+    let a = DMatrix::from_row_slice(
+        6,
+        8,
+        &[
+            1.0, 0.0, 0.0, -1.0, 0.0, 0.0, dx1, 0.0, 0.0, 1.0, 0.0, 0.0, -1.0, 0.0, dy1, 0.0, 0.0,
+            0.0, 1.0, 0.0, 0.0, -1.0, dz1, 0.0, 1.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, dx2, 0.0, 1.0,
+            0.0, 0.0, -1.0, 0.0, 0.0, dy2, 0.0, 0.0, 1.0, 0.0, 0.0, -1.0, 0.0, dz2,
+        ],
+    );
+
+    // Constants vector b
+    let b = DVector::from_column_slice(&[x1, y1, z1, x2, y2, z2]);
+
+    // Solve the least squares problem
+    let solution = a.clone().svd(true, true).solve(&b, 1.0e-12).unwrap();
+
+    println!("Solution: {:?}", solution);
+}
+
 fn main() {
+    test();
+
     let hails = from_stdin(std::io::stdin());
     let p1o = p1(&hails, 7.0, 27.0);
     println!("p1 example: {p1o}");
