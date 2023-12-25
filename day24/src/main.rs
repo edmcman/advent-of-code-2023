@@ -1,7 +1,8 @@
-use itertools::Itertools;
-use nalgebra as na;
+use z3;
 
-use na::{DMatrix, DVector};
+use z3::{ast::Ast, ast::Int, Config, Context, SatResult, Solver};
+
+use itertools::Itertools;
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Ord, Eq, Hash)]
 struct Hail {
@@ -119,44 +120,68 @@ fn p1(hail: &Vec<Hail>, min: f64, max: f64) -> usize {
     tmp.len()
 }
 
-fn p2(hail: &Vec<Hail>) {
-    let n = hail.len();
+fn p2(hails: &[Hail]) -> i64 {
+    let cfg = Config::new();
+    let ctx = Context::new(&cfg);
+    let solver = Solver::new(&ctx);
 
-    let nrow = 3 * n;
-    let ncol = 6 + n;
+    // Create integer variables for x_r, y_r, z_r, dx_r, dy_r, dz_r
+    let xr = Int::new_const(&ctx, "xr");
+    let yr = Int::new_const(&ctx, "yr");
+    let zr = Int::new_const(&ctx, "zr");
+    let dxr = Int::new_const(&ctx, "dxr");
+    let dyr = Int::new_const(&ctx, "dyr");
+    let dzr = Int::new_const(&ctx, "dzr");
 
-    let r1p1 = [1.0, 0.0, 0.0, -1.0, 0.0, 0.0];
-    let r2p1 = [0.0, 1.0, 0.0, 0.0, -1.0, 0.0];
-    let r3p1 = [0.0, 0.0, 1.0, 0.0, 0.0, -1.0];
+    // Process each Hail object
+    for (i, hail) in hails.iter().enumerate() {
+        // Create a new variable 't'
+        let t = Int::new_const(&ctx, format!("t{}", i));
 
-    let A = hail
-        .iter()
-        .enumerate()
-        .flat_map(|(i, h)| {
-            // ok, i zeroes, dx1, then n - i - 2 zeros
-            let r1 = r1p1.clone()
-                .into_iter()
-                .chain(std::iter::repeat(0.0).take(i))
-                .chain(std::iter::once(h.dx as f64))
-                .chain(std::iter::repeat(0.0).take(n - i - 1))
-                .collect_vec();
-            let r2 = r2p1.clone()
-                .into_iter()
-                .chain(std::iter::repeat(0.0).take(i))
-                .chain(std::iter::once(h.dy as f64))
-                .chain(std::iter::repeat(0.0).take(n - i - 1))
-                .collect_vec();
-            let r3 = r3p1.clone()
-                .into_iter()
-                .chain(std::iter::repeat(0.0).take(i))
-                .chain(std::iter::once(h.dz as f64))
-                .chain(std::iter::repeat(0.0).take(n - i - 1))
-                .collect_vec();
-            [r1, r2, r3]
-            //vec![r1, r2, r3]
-        })
-        .flatten()
-        .collect_vec();
+        // Add constraints for each dimension
+        solver.assert(
+            &Int::add(
+                &ctx,
+                &[
+                    &Int::from_i64(&ctx, hail.x as i64),
+                    &Int::mul(&ctx, &[&Int::from_i64(&ctx, hail.dx as i64), &t]),
+                ],
+            )
+            ._eq(&Int::add(&ctx, &[&xr, &Int::mul(&ctx, &[&dxr, &t])])),
+        );
+        solver.assert(
+            &Int::add(
+                &ctx,
+                &[
+                    &Int::from_i64(&ctx, hail.y as i64),
+                    &Int::mul(&ctx, &[&Int::from_i64(&ctx, hail.dy as i64), &t]),
+                ],
+            )
+            ._eq(&Int::add(&ctx, &[&yr, &Int::mul(&ctx, &[&dyr, &t])])),
+        );
+        solver.assert(
+            &Int::add(
+                &ctx,
+                &[
+                    &Int::from_i64(&ctx, hail.z as i64),
+                    &Int::mul(&ctx, &[&Int::from_i64(&ctx, hail.dz as i64), &t]),
+                ],
+            )
+            ._eq(&Int::add(&ctx, &[&zr, &Int::mul(&ctx, &[&dzr, &t])])),
+        );
+    }
+
+    // Check for satisfiability and return the solution if satisfiable
+    match solver.check() {
+        SatResult::Sat => {
+            let model = solver.get_model().unwrap();
+            [xr, yr, zr]
+                .iter()
+                .map(|v| model.eval(v, true).unwrap().as_i64().unwrap())
+                .sum::<i64>()
+        }
+        _ => panic!("what"),
+    }
 }
 
 fn from_stdin(stdin: std::io::Stdin) -> Vec<Hail> {
@@ -166,40 +191,17 @@ fn from_stdin(stdin: std::io::Stdin) -> Vec<Hail> {
         .collect_vec()
 }
 
-fn test() {
-    // Define your constants for both sets of equations
-    let (x1, y1, z1, dx1, dy1, dz1) = (1.0, 2.0, 3.0, 4.0, 5.0, 6.0); // First set
-    let (x2, y2, z2, dx2, dy2, dz2) = (7.0, 8.0, 9.0, 10.0, 11.0, 12.0); // Second set
-
-    // Coefficient matrix A
-    // so there are 3 rows for each hailstone
-    // columns: 6 + #hailstones
-    let a = DMatrix::from_row_slice(
-        6,
-        8,
-        &[
-            1.0, 0.0, 0.0, -1.0, 0.0, 0.0, dx1, 0.0, 0.0, 1.0, 0.0, 0.0, -1.0, 0.0, dy1, 0.0, 0.0,
-            0.0, 1.0, 0.0, 0.0, -1.0, dz1, 0.0, 1.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, dx2, 0.0, 1.0,
-            0.0, 0.0, -1.0, 0.0, 0.0, dy2, 0.0, 0.0, 1.0, 0.0, 0.0, -1.0, 0.0, dz2,
-        ],
-    );
-
-    // Constants vector b
-    let b = DVector::from_column_slice(&[x1, y1, z1, x2, y2, z2]);
-
-    // Solve the least squares problem
-    let solution = a.clone().svd(true, true).solve(&b, 1.0e-12).unwrap();
-
-    println!("Solution: {:?}", solution);
-}
-
 fn main() {
-    test();
+    //test();
 
     let hails = from_stdin(std::io::stdin());
+
     let p1o = p1(&hails, 7.0, 27.0);
     println!("p1 example: {p1o}");
 
     let p1o = p1(&hails, 200000000000000.0, 400000000000000.0);
     println!("p1 real: {p1o}");
+
+    let p2 = p2(&hails);
+    println!("p2: {:?}", p2);
 }
