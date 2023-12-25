@@ -15,7 +15,7 @@ impl Hail {
         let (a, b) = s.split_once(" @ ").unwrap();
         let binding = a
             .split(", ")
-            .map(|s| dbg!(s).parse::<isize>().unwrap())
+            .map(|s| s.parse::<isize>().unwrap())
             .collect::<Vec<_>>();
         let (x, y, z) = match binding.as_slice() {
             [x, y, z] => (x, y, z),
@@ -60,8 +60,14 @@ impl Hail {
                 / ((dx1 * dy2) - (dx2 * dy1));
 
             
-            let dx_actual = intersect_x - x1;
-            if dx_actual / dx1 < 0.0 {
+            let dx1_actual = intersect_x - x1;
+            if dx1_actual / dx1 < 0.0 {
+                // wrong way.
+                return None;
+            }
+
+            let dx2_actual = intersect_x - x2;
+            if dx2_actual / dx2 < 0.0 {
                 // wrong way.
                 return None;
             }
@@ -78,15 +84,17 @@ impl Hail {
 fn p1(hail: &Vec<Hail>, min: f64, max: f64) -> usize {
     let intersections = hail
         .iter()
-        .map(|h1| {
+        .enumerate()
+        .map(|(i1, h1)| {
             hail.iter()
-                .filter(|h2| *h1 < **h2)
-                .map(move |h2| ((h1, h2), h1.intersect_xy_with(h2)))
+            .enumerate()
+                .filter(move |(i2, _)| i2 > &i1)
+                .map(move |(i2, h2)| ((h1, h2), h1.intersect_xy_with(h2)))
         })
         .flatten()
         .collect_vec();
 
-    //dbg!(&intersections);
+    dbg!(&intersections);
 
     let tmp = intersections
         .iter()
