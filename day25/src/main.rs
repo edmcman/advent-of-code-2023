@@ -94,12 +94,4 @@ fn main() {
     let p1 = p1(&flatgraph);
     println!("p1: {p1}");
 
-    //let mst = pathfinding::undirected::kruskal::kruskal(&flatgraph).collect_vec();
-    //dbg!(&mst);
-
-    //dbg!(g.len());
-    //dbg!(mst.len());
-    println!("tall: {:?}", tallgraph);
-    println!("flat: {:?}", flatgraph);
-    //println!("mst: {:?}", mst);
 }
